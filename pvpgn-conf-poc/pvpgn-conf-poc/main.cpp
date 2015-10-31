@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 
 //POCO
@@ -20,11 +21,11 @@ class Config {
 	
 public:
 	Config() {
-		serveraddrs_doc = "This is a comma delimited list of hostnames that the server should listen on. It might be useful to make an internal-only server on a gateway machine for example...";
+		/*serveraddrs_doc = "This is a comma delimited list of hostnames that the server should listen on. It might be useful to make an internal-only server on a gateway machine for example...";
 		serveraddrs = "eurobattle.net";
 		w3routeaddr_doc = "W3 Play Game router address. Just put your server address in here or use 0.0.0.0:6200 for server to bind to all interfaces, but make sure you set up w3trans if you do.";
 		w3routeaddr = "0.0.0.0:6200";
-		test = 11111;
+		test = 11111;*/
 	}
 
 	template<class Archive>
@@ -36,7 +37,10 @@ public:
 				CEREAL_NVP(test)); // serialize things by passing them to the archive
 	}
 
-private:
+	string getServeraddrs() {
+		return serveraddrs;
+	}
+
 	string serveraddrs_doc;
 	string serveraddrs;
 	string w3routeaddr_doc;
@@ -66,13 +70,32 @@ public:
 			out << "hello world";
 		}
 		else if (path == "/config") {
-			//serialize config
-			std::stringstream ss; // any stream can be used
-			cereal::JSONOutputArchive oarchive(ss); // Create an output archive
-			Config config;
-			oarchive(CEREAL_NVP(config)); // Write the data to the archive
-			ss.flush();
+			//deserialize from json file
+			Config configInstance;
+			{
+				ifstream filein("C:/Users/klemen/git/pvpgn-conf-poc/pvpgn-conf-poc/config.json");
+				if (filein.is_open()) {
+					cout << "File opened, deserializing";
+					cereal::JSONInputArchive iarchive(filein); // Create an input archive
+					iarchive(configInstance); // Read the data from the archive
+					//debug, check if config data was filled by deserializer
+					cout << configInstance.getServeraddrs();
+				}
+				else {
+					cout << "Cant read config file";
+					return;
+				}
+			}
 
+			//serialize config object to json
+			//streams must be scoped {n so they autoflush on close
+			stringstream ssout; // any stream can be used
+			{
+				cout << "Serializing";
+				cereal::JSONOutputArchive oarchive(ssout); // Create an output archive
+				oarchive(cereal::make_nvp("config", configInstance)); // Write the data to the archive
+				ssout.flush();
+			}
 
 			//send response
 			out << "<h1>Hello world!</h1>"
@@ -85,7 +108,7 @@ public:
 				<< "<p>getFragment: " << uri.getFragment() << "</p>"
 				<< "<p>getPathEtc: " << uri.getPathEtc() << "</p>"
 				<< "<p>getQuery: " << uri.getQuery() << "</p>"
-				<< "<p>JSON serialize" << ss.str() << "</p>";
+				<< "<textarea rows=20 cols=200>" << ssout.str() << "</textarea>";
 		}
 		
 		out.flush();
